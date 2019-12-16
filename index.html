@@ -1,0 +1,746 @@
+<html>
+<head>
+<!-- 	STILE PING PONG -->
+<style>
+#playground{
+ background:  url(/images/pixels.jpg);
+ width: 400px;
+ height: 200px;
+ position: relative;
+ overflow: hidden;
+ }
+ #ball {
+ background: #fbb;
+ position: absolute;
+ width: 20px;
+ height: 20px;
+ left: 150px;
+ top: 100px;
+ border-radius: 10px;
+ }
+ .paddle {
+ background: #bbf;
+ left: 50px;
+ top: 70px;
+ position: absolute;
+ width: 30px;
+ height: 70px;
+ }
+ #paddleB {
+ left: 320px;
+ }
+
+</style>
+
+
+  <title>PONG RTC</title>
+
+  <link href="//fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet" type="text/css">
+  </head>
+
+
+<!--CODICE HTML DELLA PAGINA-->
+<body>
+
+
+<link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet">
+  <div id="container">
+    <h1 style="font-family: 'Press Start 2P', cursive; text-align:center" >PONG RTC</h1>
+
+    <div>
+     
+      
+    </div>
+
+    <span></span>
+    <input type="text" id="message"/><button id="send">Send</button>
+<button id="START">Risincronizza</button>
+<button id="SOSPENDI">Pausa</button>
+<button id="PARTI">Riprendi</button>
+	
+
+	
+    <div id="chat"></div>
+    
+    <div id="errorMsg"></div>
+    <div id="okMsg" style="display:none;"></div>
+	<div id="CONN"></div>
+    <div id="P2P">
+	<textarea id='sdpMessage' name="sdpMessage" type="textarea" value="" cols="80" rows="10" style="display:none;"></textarea>
+	
+	<button id="OFFERTA">Offerta</button>
+	<button id="RISPOSTA">Risposta</button>
+	<button id="INIT">Inizia a comunicare (chiamante)</button>
+<hr>
+<p id="messag"></p>
+	
+	
+  </div>
+
+<div>
+<ul id="messages"  style="display:none;"></ul>
+    <form action=""  style="display:none;">
+
+      <textarea type="textarea" cols="80" rows="10" id="m" autocomplete="off"  style="display:none;"></textarea><button>Send</button>
+    </form>
+
+<!-- Elementi del gioco --> 
+
+<div id="gioco" >
+ <div id="game">
+ <div style = "background:#aafdbb" id="playground">
+ <div id="paddleA" class="paddle"></div>
+ <div id="paddleB" class="paddle"></div>
+ <div id="ball"></div>
+ </div>
+</div>
+
+<div>
+	<button id="SU_A">SU(A)</button>
+	<button id="SU_B">SU(B)</button>
+</div>
+<hr>
+
+<div>	
+<button id="GIU_A">GIU(A)</button>
+<button id="GIU_B">GIU(B)</button>
+</div>
+
+<div id="scoreboard">
+ <div class="score">Player A : <span id="scoreA">0</span></div>
+ <div class="score">Player B : <span id="scoreB">0</span></div>
+</div>
+
+
+<!--Includo le librerie -->
+ <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+	<script src="https://code.jquery.com/jquery-2.2.4.min.js" integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="
+	crossorigin="anonymous"></script>
+
+
+
+
+<!--script del gioco -->
+
+    <script>
+
+//SIGNALING E SCAMBIO DI INFORMAZIONI
+
+      $(function () {
+		
+        	var socket = io();
+        	$('form').submit(function(){			//L'evento submit del form attiva questa funzione
+         		socket.emit('chat message', $('#m').val());	//Emetto il messaggio "chat message" ascoltato dall'event listener
+          		$('#m').val('');				//Svuoto la textbox "m"
+          		return false;
+       					 });
+        	socket.on('chat message', function(msg){	//All'emissione del messaggio chiave sarà richiamata la seguente funzione con 									parametro il messaggio
+			messages.innerHTML = "";			
+
+          		$('#messages').append($('<pre>').text(msg));	//aggiungo il messaggio in coda a quello che già c'è nell'area dei 										messaggi server
+         		$('#messages').append($('<hr>'));
+          		window.scrollTo(0, document.body.scrollHeight);
+        						});	
+     		 });
+    </script>
+
+</div>
+<script>
+START.onclick=update;
+function update(){
+dataChannel.send("Mi risincronizzo all'altro peer");
+var ball=pingpong.ball;
+//la spiegazione del dato che verrà inviato è nella funzione di message callback
+dataChannel.send(ball.x+1000);
+dataChannel.send(ball.y+2000);
+dataChannel.send(ball.directionX+3100);//sommo alla direzione X 3100 in quanto essa potrà assumere il valore -1
+dataChannel.send(ball.directionY+4100);//sommo alla direzione Y 3100 in quanto essa potrà assumere il valore -1
+pingpong.scoreA='0'; //effettuo un reset del punteggio del peer che ha richiesto il restart della sessione di gioco
+$("#scoreA").html(pingpong.scoreA);
+pingpong.scoreB='0';
+$("#scoreB").html(pingpong.scoreB);
+
+
+}
+OFFERTA.onclick=function(){
+	dataConstraint = null;
+	CONN.innerHTML="Offerta inviata correttamente";
+   	dataChannel = pc.createDataChannel('LinuxDayRules', dataConstraint);	//creazione di un canale di comunicazione
+									//funzioni legate al dataChannel
+   	dataChannel.onopen = function (e) {					//inizio della connessione abilito il bottone SEND
+	console.log("Data Channel open!", e);
+	sendBtn.disabled = false;
+	
+   			}; 
+   	dataChannel.onclose = function (e) { 				//DataChannel inattivo
+	console.log("Data channel closed :(", e);
+   					};
+   	dataChannel.onmessage = messageCallback; 			//ogni volta che viene inviato un messaggio richiamo la funzione 										messageCllback
+
+   	pc.createOffer().then(						//funzione di creazione dell'offerta seguita da una funzione
+
+    		function (desc) { 
+
+			console.log("Created offer", desc);			
+        		pc.setLocalDescription(desc).then(				//Setting delle informazioni nell'area riservata 
+         			 function() { console.log("Create offer success");
+				 	m.innerHTML=pc.localDescription.sdp;			//copio l'offerta nell'area messaggi condivisa
+				 	var socket = io();
+	 				socket.emit('chat message', $('#m').val());	//emetto "chat message" per condividere le informazioni 											con l'altro peer
+		 				},
+          			onSetSessionDescriptionError					//chiamata alla funzione di errore in caso di 													offerta non creata correttamente
+       							 );
+   				},
+    		function (e) { console.log("Error", e); }				//funzione di scrittura dell'errore in questione
+  				);
+//var socket1 = io();
+//socket1.emit('chat message', 'ciao');
+
+
+			}
+
+$(function () { //funzione che mette al corrente il peer locale delle richieste effettuate dal peer remoto
+
+        var socket = io();
+
+socket.on('chat message', function(msg){
+          $('#messag').append($('<li>').text("Offerta/Risposta inviata"));
+          window.scrollTo(0, document.body.scrollHeight);
+        });
+
+    });
+
+
+
+
+
+RISPOSTA.onclick=function(){
+
+
+CONN.innerHTML="Risposta inviata correttamente";
+console.log('set Sdp offer button clicked');
+
+sdpMessage.innerHTML=$('#messages').text();				//prelevo dall'area condivisa l'offerta dell'altro peer
+
+var TESTO= SdpText.value;						//sfrutto una variabile per salvarne il contenuto
+sdpOffer =  new RTCSessionDescription({type: 'offer', sdp: TESTO});	//creo l'offerta usando le informazioni ricevute dall'altro peer
+ 
+pc.setRemoteDescription(sdpOffer).then(										//set dell'offerta 
+    				function() { //Success
+   						console.log('Set remote Success. Creating answer');
+						pc.createAnswer().then(						//creazione della risposta
+	   						function (desc) {
+	      							console.log('Created answer', desc);
+             							msgdiv.innerHTML = '<pre>' + desc.sdp + '</pre>'; 
+								m.innerHTML=desc.sdp;
+								var socket = io();
+								socket.emit('chat message', $('#m').val());
+								
+             							pc.setLocalDescription(desc).then(
+								    			function() {},
+		   						 			onSetSessionDescriptionError
+	      											);
+	  								 },
+	   					onCreateSessionDescriptionError
+									);
+   					 },	
+    				onSetSessionDescriptionError
+ 					 );
+
+  
+}
+
+INIT.onclick=function(){
+
+	sdpMessage.innerHTML=$('#messages').text();		//prelevo la risposta dall'area condivisa
+	var sdpAnswer = new RTCSessionDescription({type: 'answer', sdp: sdpMessage.value}); //creo una risposta formale da quei dati
+	console.log('set Sdp answer button clicked. Setting answer', sdpAnswer);
+  	pc.setRemoteDescription(sdpAnswer).then(		//setting della risposta seguita da...
+    		function() {
+      			console.log("setRemoteDescription was successful");	//messaggio di successo della comunicazione
+			    				},
+   		onSetSessionDescriptionError			//messaggio in caso di errori di comunicazione
+  						);
+			}
+
+</script>
+  <script>
+//Constants
+var localStream = null;
+var pc = null; 
+var dataChannel = null;
+var sendBtn = document.getElementById('send');			//assegno un nome agli elementi della pagina web
+var messageText = document.getElementById('message');
+var errordiv = document.getElementById('errorMsg');
+var chatDiv = document.getElementById('chat');
+var msgdiv = document.getElementById('okMsg');
+var SdpText = document.getElementById('sdpMessage');
+var posX; var posY; var dirX; var dirY; // dichiaro le variabili che conterranno i parametri di gioco prima di utilizzarli nella funzione di messageCallback();
+
+sendBtn.onclick = sendData;		//assoccio all'evento click del bottone send la funzione sendData dichiarata successivamente
+sendBtn.disabled = true;		//disattivo il bottone SENDP2P che verrà attivato solo ad inizio comunicazione
+initPeerConnection();			//dichiarazione della funzione di inizio della comunicazione peer 2 peer
+
+function initPeerConnection() {
+//la connessione sarà possibile sfruttando un server di google fornito gratuitamente per utilizzo degli utenti
+   var servers = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'},
+   				 {"urls":["turn:74.125.143.127:19305?transport=udp","turn:[2A00:1450:4013:C03::7F]:19305?transport=udp","turn:74.125.143.127:443?transport=tcp","turn:[2A00:1450:4013:C03::7F]:443?transport=tcp"],"username":"COCYrsAFEgZfe2dPu/0Yzc/s6OMT","credential":"C/B5w7Oauq7czKcFMgatxB8pTyQ="}]};
+   var  pcConstraint = {'mandatory':
+  {
+    'OfferToReceiveAudio': false,
+    'OfferToReceiveVideo': false
+  }
+};
+   pc = new webkitRTCPeerConnection(servers, pcConstraint);
+   pc.onicecandidate = function(e) {
+      onIceCandidate(pc, e);
+   };
+   pc.ondatachannel = dataChannelCallback;
+   pc.oniceconnectionstatechange = function(e) {
+     onIceStateChange(pc, e);
+   };
+}
+
+
+
+function dataChannelCallback(event) {
+	console.log("Got this event", event);
+	
+	if (dataChannel === null) {			//ad attivazione del dataChannel attivo il bottone e definisco le funzioni implementate
+		dataChannel = event.channel;
+		dataChannel.onmessage = messageCallback; 
+		sendBtn.disabled = false;
+	}
+ 
+}
+function messageCallback(event) {
+//$('#gioco').css('display','none');g
+	console.log("Got data", event);
+//var posX; var posY; var dirX; var dirY;
+if(event.data==="sospendi" || event.data==="riprendi" ||event.data==="79" || event.data==="76" || event.data==="87" || event.data==="83" || (1000<=event.data && event.data<=2000) || (2000<=event.data && event.data<=2800) || (3000<=event.data && event.data<=3500) || (4000<=event.data && event.data<=5000))
+{
+
+//metti il gioco in pausa
+if (event.data==="sospendi")
+{
+
+clearInterval(pingpong.timer);
+}
+
+//riprendi l'esecuzione del gioco
+if(event.data==="riprendi")
+{
+pingpong.timer = setInterval(gameloop,40);
+}
+//in assenza della possibilità di gestire più di un canale di comunicazione fra i peer, ma conoscendo il range di valori che può assumere la posizione e la direzione della pallina (trovandosi in un area circoscritta), abbiamo deciso di inviare sul canale un numero compreso fra 1000 e 2000 per la posizione X della pallina (sommando 1000 al valore di ball.x); la posizione di Y assumerà valori compresi fra 2000 e 2800; le direzioni di X e Y saranno rispettivamente comprese fra 3000-3500 e 4000-5000 (la direzione varrà -1 o 1). Il numero ricevuto sul data channel verrà poi decrementato per essere utilizzato dal gioco.  
+if(1000<=event.data && event.data<=2000){
+console.log("posX=");
+posX = event.data-1000;
+console.log(posX);
+
+}
+if(2000<=event.data && event.data<=2800){
+console.log("posY=");
+posY = event.data-2000;
+console.log(posY);
+}
+
+if(3000<=event.data && event.data<=3500){
+console.log("dirX=");
+dirX = event.data-3100;
+console.log(dirX);
+}
+
+if(4000<=event.data && event.data<=5000){
+console.log("dirY=");
+dirY = event.data-4100;
+console.log(dirY);
+
+//dopo aver ricevuto l'ultimo parametro di gioco mi occupo del reset del punteggio e dei parametri appena acquisiti del peer remoto
+var ball=pingpong.ball;
+
+ball.x=posX;
+ball.y=posY;
+
+$("#ball").css({
+ "left": ball.x,
+ "top" : ball.y
+ });
+ ball.directionX = dirX;
+ball.directionY = dirY;
+//reset dello score
+pingpong.scoreA='0';
+$("#scoreA").html(pingpong.scoreA);
+pingpong.scoreB='0';
+$("#scoreB").html(pingpong.scoreB);
+
+
+}
+
+if (event.data==="79") { // tasto O
+ // muovi su la paletta B di 5 pixels
+ var top = parseInt($("#paddleB").css("top"));
+ $("#paddleB").css("top",top-5);
+ }
+
+ if (event.data==="76") { // tasto L
+ // muovi giù la paletta B di 5 pixels
+ var top = parseInt($("#paddleB").css("top"));
+ $("#paddleB").css("top",top+5);
+}
+     
+  
+if (event.data==="87") { // tasto W
+ // muovi su la paletta A di 5 pixels
+ var top = parseInt($("#paddleA").css("top"));
+ $("#paddleA").css("top",top-5);
+}
+     
+if (event.data==="83") { // arrow-down
+ // muovi giù la paletta A di 5 pixels
+ var top = parseInt($("#paddleA").css("top"));
+ $("#paddleA").css("top",top+5);
+}
+}else{	chatDiv.innerHTML += 'Other peer said: ' + event.data + '</br>';}//scrivo il messaggio inviato dall'altro peer
+
+var KEY = {
+ O: 79,
+ L: 76,
+ W: 87,
+ S: 83
+}
+  
+}
+
+
+function onDataChannelStateChange() {
+  var readyState = dataChannel.readyState;
+  console.log('Send channel state is: ' + readyState);
+}
+
+//funzione utile allo scambio di messaggi di testo 
+function sendData() {
+    data = messageText.value;
+	msgdiv.innerHTML = "";//svuoto la text-box contenente i parametri utili allo stabilire una connessione
+	CONN.innerHTML="";//svuoto la text-box contenente lo stato di connessione
+	var elem = document.getElementById('P2P');
+ 	
+    console.log("About to send this data: " + data);  
+    chatDiv.innerHTML += 'I said: ' + data + '</br>';//scrivo nell'area di testo riservata ai messaggi il testo inviato dal peer locale e lascio alla funzione di callback la replica del testo sul peer remoto
+    dataChannel.send(data); //richiamo la funzione di invio del messaggio sul datachannel che farà innescare quella di callback
+    messageText.value = "";
+}
+
+
+//ICE Callbacks
+function onIceCandidate(pc, event) {
+    console.log("Ice candidate", event);
+    msgdiv.innerHTML = '<pre>' + pc.localDescription.sdp + '</pre>'; 
+}
+
+function onAddIceCandidateSuccess(pc) {
+  console.log('addIceCandidate success');
+}
+
+function onIceStateChange(pc, event) {
+  if (pc) {
+    	console.log('ICE state: ' + pc.iceConnectionState);
+	if(pc.iceConnectionState==="connected")	{
+		//verifico che lo stato di connessione sia "connesso"
+		console.log("syncro"); //scivo nell'area log che sto sincronizzando i peer
+		pingpong.timer = setInterval(gameloop,40);
+
+		$('#gioco').css('display','');		//mostro l'area di gioco
+		$('#P2P').css('display','none');	//nascondo l'area P2P
+		$('#CONN').css('display','none');	//nascondo l'area messaggi della connessione
+		var ball = pingpong.ball;
+		//RESET della posizione della pallina in 0:0
+		ball.x = 0;
+ 		ball.y = 0;
+ 		$("#ball").css({
+ 			"left": ball.x,
+ 			"top" : ball.y
+ 				});
+
+						}
+	
+  	}
+
+					}
+//Error Handling
+function onCreateSessionDescriptionError(error) {
+  console.log('Error setting SDP: ' + error.toString(), error);
+  errordiv.innerHTML = 'Error setting SDP';
+}
+
+function onSetSessionDescriptionError(error) {
+  console.log("Set session desc. error!", error);
+}
+
+function onAddIceCandidateError(pc, error) {
+  console.log('failed to add ICE Candidate: ' + error.toString());
+}
+
+
+
+
+
+
+
+
+
+
+
+
+//LOGICA DEL GIOCO 
+
+var KEY = {
+ O: 79,
+ L: 76,
+ W: 87,
+ S: 83
+}
+
+var pingpong= {
+	
+	scoreA: 0,
+	scoreB: 0
+	
+}
+
+pingpong.pressedKeys = [];
+pingpong.ball = {
+ speed: 4,
+ x: 150,
+ y: 100,
+ directionX: 1,
+ directionY: 1
+}
+
+$(function(){
+
+
+//Metti gioco in pausa 
+SOSPENDI.onclick=function(){
+clearInterval(pingpong.timer);
+dataChannel.send("sospendi");// la stringa verrà riconosciuta nel data channel e sarà avviata la funzione di interruzione del gioco
+
+console.log("sospendi");
+
+
+}
+
+//Riprendi il gioco 
+PARTI.onclick=function(){
+
+pingpong.timer = setInterval(gameloop,40);
+dataChannel.send("riprendi");// la stringa verrà riconosciuta nel data channel e sarà avviata la funzione di ripresa del gioco
+console.log("riprendi");
+
+
+}
+ 
+//Giocare con tasti  
+
+SU_A.onclick=function(){
+ var top = parseInt($("#paddleA").css("top"));
+ // muovi su paletta A
+ $("#paddleA").css("top",top-5);
+dataChannel.send("87");
+
+}
+
+GIU_A.onclick=function(){
+  var top = parseInt($("#paddleA").css("top"));
+ // muovi giù paletta A
+ $("#paddleA").css("top",top+5);
+dataChannel.send("83");
+
+}
+
+
+SU_B.onclick=function(){
+
+var top = parseInt($("#paddleB").css("top"));
+ // muovi su paletta B
+ $("#paddleB").css("top",top-5);
+dataChannel.send("79");
+
+}
+
+
+GIU_B.onclick=function(){
+
+ var top = parseInt($("#paddleB").css("top"));
+ // muovi giù paletta B
+ $("#paddleB").css("top",top+5);
+dataChannel.send("76");
+}
+
+
+
+$(document).keydown(function(e){//funzione di gestione dell'input da tastiera
+	 //scrive nell'area log il numero corrispondente al tasto 
+	 console.log(e.which);
+	 
+ switch(e.which){
+ case KEY.O: // tasto O
+ // converto il valore della proprietà top in un intero
+ var top = parseInt($("#paddleB").css("top"));
+ // muovo paletta B su di 5 pixels
+ $("#paddleB").css("top",top-5);
+dataChannel.send(e.which);
+ break;
+ case KEY.L: // tasto L
+ var top = parseInt($("#paddleB").css("top"));
+ // muovo giù la paletta B
+ $("#paddleB").css("top",top+5);
+dataChannel.send(e.which);
+ break;
+ case KEY.W: // tasto W
+ var top = parseInt($("#paddleA").css("top"));
+ // muovo su paletta A
+ $("#paddleA").css("top",top-5);
+dataChannel.send(e.which);
+ break;
+ case KEY.S: // tasto S
+ var top = parseInt($("#paddleA").css("top"));
+ // muovo giù paletta A
+ $("#paddleA").css("top",top+5);
+dataChannel.send(e.which);
+ break;
+ }
+ });
+ 
+
+ 
+ 
+});
+
+
+function gameloop() {
+	 moveBall();
+  movePaddles();
+}
+
+
+//funzione utile al movimento delle palette
+function movePaddles() {
+ if (pingpong.pressedKeys[KEY.O]) { // o
+ // muovi su la paletta B
+ var top = parseInt($("#paddleB").css("top"));
+ $("#paddleB").css("top",top-5);
+ }
+ if (pingpong.pressedKeys[KEY.L]) { // l
+ // muovi giù la paletta B
+ var top = parseInt($("#paddleB").css("top"));
+ $("#paddleB").css("top",top+5);
+ }
+ 
+ if (pingpong.pressedKeys[KEY.W]) { // w
+ // muovi su la paletta A
+ var top = parseInt($("#paddleA").css("top"));
+ $("#paddleA").css("top",top-5);
+ }
+ if (pingpong.pressedKeys[KEY.S]) { // s
+ // muovi giù la paletta A
+ var top = parseInt($("#paddleA").css("top"));
+ $("#paddleA").css("top",top+5);
+ }
+}
+
+
+function moveBall() {
+ // faccio riferimento a delle variabili utili 
+ var playgroundHeight = parseInt($("#playground").height());
+ var playgroundWidth = parseInt($("#playground").width());
+ var ball = pingpong.ball;
+
+ // identifico i bordi del campo
+ // identifico il confine inferiore
+ if (ball.y + ball.speed*ball.directionY > playgroundHeight)
+ {
+ ball.directionY = -1;
+ }
+ // identifico il confine superiore
+ if (ball.y + ball.speed*ball.directionY < 0)
+ {
+ ball.directionY = 1;
+ }
+ // identifico il confine destro
+ if (ball.x + ball.speed*ball.directionX > playgroundWidth)
+ {
+	 
+ // il giocatore B ha perso 
+ pingpong.scoreA++;
+$("#scoreA").html(pingpong.scoreA);
+ // resetta la posizione della pallina
+ ball.x = 250;
+ ball.y = 100;
+ $("#ball").css({
+ "left": ball.x,
+ "top" : ball.y
+ });
+ ball.directionX = -1;
+ }
+ // identifica confine sinistro
+ if (ball.x + ball.speed*ball.directionX < 0)
+ {
+	 // il giocatore A ha perso 
+	 pingpong.scoreB++;
+$("#scoreB").html(pingpong.scoreB);
+ // resetta la posizione della pallina
+ ball.x = 150;
+ ball.y = 100;
+ $("#ball").css({
+ "left": ball.x,
+ "top" : ball.y
+ });
+ ball.directionX = 1;
+ }
+ ball.x += ball.speed * ball.directionX;
+ ball.y += ball.speed * ball.directionY;
+
+//identifica posizione della paletta A e decidi direzione della pallina 
+
+ var paddleAX = parseInt($("#paddleA").css("left"))+parseInt($("#paddleA").css("width"));
+var paddleAYBottom = parseInt($("#paddleA").css("top"))+parseInt($("#paddleA").css("height"));
+var paddleAYTop = parseInt($("#paddleA").css("top"));
+if (ball.x + ball.speed*ball.directionX < paddleAX)
+{
+ if (ball.y + ball.speed*ball.directionY <= paddleAYBottom &&
+ ball.y + ball.speed*ball.directionY >= paddleAYTop)
+ {
+ ball.directionX = 1;
+ }
+}
+// identifica posizione della paletta B e decide la direzione della pallina
+var paddleBX = parseInt($("#paddleB").css("left"));
+var paddleBYBottom = parseInt($("#paddleB").css("top"))+parseInt($("#paddleB").css("height"));
+var paddleBYTop = parseInt($("#paddleB").css("top"));
+if (ball.x + ball.speed*ball.directionX >= paddleBX)
+{
+ if (ball.y + ball.speed*ball.directionY <= paddleBYBottom && ball.y + ball.speed*ball.directionY >= paddleBYTop)
+ {
+ ball.directionX = -1;
+ }
+}
+  // muovi la pallina con una certa direzione e velocità
+ $("#ball").css({
+ "left" : ball.x,
+ "top" : ball.y
+ });
+}
+
+
+
+
+
+
+
+
+</script>
+</body>
+</html>
